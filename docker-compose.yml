@@ -1,0 +1,11 @@
+version: '3.1'
+
+services:
+  db:
+    image: postgres:14.1-alpine3.15
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: transition
+    ports:
+      - 5432:5432

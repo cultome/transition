@@ -4,31 +4,44 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jinzhu/gorm"
-	_ "github.com/mattn/go-sqlite3"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"github.com/qor/qor/test/utils"
-	"github.com/qor/transition"
+	"github.com/cultome/transition"
 )
 
 type Order struct {
-	Id      int
-	Address string
-
 	transition.Transition
+
+	Address string
 }
 
-var db = utils.TestDB()
+func getOrder() *Order {
+	order := Order{}
+	db.Create(&order)
+
+	return &order
+}
+
+func acquireConnection() *gorm.DB {
+	connString := "postgresql://username:password@localhost:5432/transition"
+	db, err := gorm.Open(postgres.Open(connString), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	return db
+}
+
+var db = acquireConnection()
 
 func init() {
 	for _, model := range []interface{}{&Order{}, &transition.StateChangeLog{}} {
-		if err := db.DropTableIfExists(model).Error; err != nil {
-			panic(err)
-		}
+		db.Migrator().DropTable(model)
+	}
 
-		if err := db.AutoMigrate(model).Error; err != nil {
-			panic(err)
-		}
+	for _, model := range []interface{}{&Order{}, &transition.StateChangeLog{}} {
+		db.AutoMigrate(model)
 	}
 }
 
@@ -61,7 +74,7 @@ func CreateOrderAndExecuteTransition(transition *transition.StateMachine, event 
 }
 
 func TestStateTransition(t *testing.T) {
-	order := &Order{}
+	order := getOrder()
 
 	if err := getStateMachine().Trigger("checkout", order, db); err != nil {
 		t.Errorf("should not raise any error when trigger event checkout")
@@ -88,7 +101,7 @@ func TestStateTransition(t *testing.T) {
 }
 
 func TestGetLastStateChange(t *testing.T) {
-	order := &Order{}
+	order := getOrder()
 
 	if err := getStateMachine().Trigger("checkout", order, db, "checkout note"); err != nil {
 		t.Errorf("should not raise any error when trigger event checkout")
@@ -141,7 +154,7 @@ func TestMultipleTransitionWithOneEvent(t *testing.T) {
 		t.Errorf("order status doesn't transitioned correctly")
 	}
 
-	paidOrder := &Order{}
+	paidOrder := getOrder()
 	paidOrder.State = "paid"
 	if err := orderStateMachine.Trigger("cancel", paidOrder, db); err != nil {
 		t.Errorf("should not raise any error when trigger event cancel")
@@ -154,14 +167,14 @@ func TestMultipleTransitionWithOneEvent(t *testing.T) {
 
 func TestStateCallbacks(t *testing.T) {
 	orderStateMachine := getStateMachine()
-	order := &Order{}
+	order := getOrder()
 
 	address1 := "I'm an address should be set when enter checkout"
 	address2 := "I'm an address should be set when exit checkout"
-	orderStateMachine.State("checkout").Enter(func(order interface{}, tx *gorm.DB) error {
+	orderStateMachine.State("checkout").Enter(func(order interface{}, db *gorm.DB) error {
 		order.(*Order).Address = address1
 		return nil
-	}).Exit(func(order interface{}, tx *gorm.DB) error {
+	}).Exit(func(order interface{}, db *gorm.DB) error {
 		order.(*Order).Address = address2
 		return nil
 	})
@@ -190,10 +203,10 @@ func TestEventCallbacks(t *testing.T) {
 		prevState, afterState string
 	)
 
-	orderStateMachine.Event("checkout").To("checkout").From("draft").Before(func(order interface{}, tx *gorm.DB) error {
+	orderStateMachine.Event("checkout").To("checkout").From("draft").Before(func(order interface{}, db *gorm.DB) error {
 		prevState = order.(*Order).State
 		return nil
-	}).After(func(order interface{}, tx *gorm.DB) error {
+	}).After(func(order interface{}, db *gorm.DB) error {
 		afterState = order.(*Order).State
 		return nil
 	})
@@ -218,7 +231,7 @@ func TestTransitionOnEnterCallbackError(t *testing.T) {
 		orderStateMachine = getStateMachine()
 	)
 
-	orderStateMachine.State("checkout").Enter(func(order interface{}, tx *gorm.DB) (err error) {
+	orderStateMachine.State("checkout").Enter(func(order interface{}, db *gorm.DB) (err error) {
 		return errors.New("intentional error")
 	})
 
@@ -237,7 +250,7 @@ func TestTransitionOnExitCallbackError(t *testing.T) {
 		orderStateMachine = getStateMachine()
 	)
 
-	orderStateMachine.State("checkout").Exit(func(order interface{}, tx *gorm.DB) (err error) {
+	orderStateMachine.State("checkout").Exit(func(order interface{}, db *gorm.DB) (err error) {
 		return errors.New("intentional error")
 	})
 
@@ -260,7 +273,7 @@ func TestEventOnBeforeCallbackError(t *testing.T) {
 		orderStateMachine = getStateMachine()
 	)
 
-	orderStateMachine.Event("checkout").To("checkout").From("draft").Before(func(order interface{}, tx *gorm.DB) error {
+	orderStateMachine.Event("checkout").To("checkout").From("draft").Before(func(order interface{}, db *gorm.DB) error {
 		return errors.New("intentional error")
 	})
 
@@ -279,7 +292,7 @@ func TestEventOnAfterCallbackError(t *testing.T) {
 		orderStateMachine = getStateMachine()
 	)
 
-	orderStateMachine.Event("checkout").To("checkout").From("draft").After(func(order interface{}, tx *gorm.DB) error {
+	orderStateMachine.Event("checkout").To("checkout").From("draft").After(func(order interface{}, db *gorm.DB) error {
 		return errors.New("intentional error")
 	})
 
