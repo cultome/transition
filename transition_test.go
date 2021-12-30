@@ -16,7 +16,7 @@ type Order struct {
 	Address string
 }
 
-func getOrder() *Order {
+func createOrder() *Order {
 	order := Order{}
 	db.Create(&order)
 
@@ -74,7 +74,7 @@ func CreateOrderAndExecuteTransition(transition *transition.StateMachine, event 
 }
 
 func TestStateTransition(t *testing.T) {
-	order := getOrder()
+	order := createOrder()
 
 	if err := getStateMachine().Trigger("checkout", order, db); err != nil {
 		t.Errorf("should not raise any error when trigger event checkout")
@@ -100,8 +100,37 @@ func TestStateTransition(t *testing.T) {
 	}
 }
 
+func TestStateTransitionPreload(t *testing.T) {
+	order := createOrder()
+
+	if err := getStateMachine().Trigger("checkout", order, db); err != nil {
+		t.Errorf("should not raise any error when trigger event checkout")
+	}
+
+	if order.GetState() != "checkout" {
+		t.Errorf("state doesn't changed to checkout")
+	}
+
+	dbOrder := Order{}
+	db.Preload("StateChangeLogs").First(&dbOrder)
+
+	if len(dbOrder.StateChangeLogs) < 1 {
+		t.Errorf("state changes are not being loaded")
+	}
+
+	for _, stateChangeLog := range dbOrder.StateChangeLogs {
+		if stateChangeLog.From != "draft" {
+			t.Errorf("state from not set")
+		}
+
+		if stateChangeLog.To != "checkout" {
+			t.Errorf("state to not set")
+		}
+	}
+}
+
 func TestGetLastStateChange(t *testing.T) {
-	order := getOrder()
+	order := createOrder()
 
 	if err := getStateMachine().Trigger("checkout", order, db, "checkout note"); err != nil {
 		t.Errorf("should not raise any error when trigger event checkout")
@@ -154,7 +183,7 @@ func TestMultipleTransitionWithOneEvent(t *testing.T) {
 		t.Errorf("order status doesn't transitioned correctly")
 	}
 
-	paidOrder := getOrder()
+	paidOrder := createOrder()
 	paidOrder.State = "paid"
 	if err := orderStateMachine.Trigger("cancel", paidOrder, db); err != nil {
 		t.Errorf("should not raise any error when trigger event cancel")
@@ -167,7 +196,7 @@ func TestMultipleTransitionWithOneEvent(t *testing.T) {
 
 func TestStateCallbacks(t *testing.T) {
 	orderStateMachine := getStateMachine()
-	order := getOrder()
+	order := createOrder()
 
 	address1 := "I'm an address should be set when enter checkout"
 	address2 := "I'm an address should be set when exit checkout"

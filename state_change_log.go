@@ -11,12 +11,12 @@ import (
 // StateChangeLog a model that used to keep state change logs
 type StateChangeLog struct {
 	gorm.Model
+	audited.AuditedModel
 	ReferType string
 	ReferID   uint
 	From      string
 	To        string
 	Note      string `sql:"size:1024"`
-	audited.AuditedModel
 }
 
 // GetStateChangeLogs get state change logs
