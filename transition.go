@@ -13,6 +13,7 @@ import (
 // Transition is a struct, embed it in your struct to enable state machine for the struct
 type Transition struct {
 	gorm.Model
+	ID              string `sql:"type:uuid;primary_key" gorm:"default:uuid_generate_v4()"`
 	State           string
 	StateChangeLogs []StateChangeLog `gorm:"polymorphic:Refer;"`
 }
@@ -28,7 +29,7 @@ func (transition Transition) GetState() string {
 }
 
 // GetState get current state ID
-func (transition Transition) RecordID() uint {
+func (transition Transition) RecordID() string {
 	return transition.ID
 }
 
@@ -36,7 +37,7 @@ func (transition Transition) RecordID() uint {
 type Stater interface {
 	SetState(name string)
 	GetState() string
-	RecordID() uint
+	RecordID() string
 }
 
 // New initialize a new StateMachine that hold states, events definitions
@@ -143,6 +144,7 @@ func (sm *StateMachine) Trigger(name string, value Stater, db *gorm.DB, notes ..
 
 			if db != nil {
 				schema := GetSchema(value, db)
+
 				log := StateChangeLog{
 					ReferType: schema.Table,
 					ReferID:   value.RecordID(),

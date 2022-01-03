@@ -17,7 +17,7 @@ Embed `transition.Transition` into your struct, it will enable the state machine
 import "github.com/qor/transition"
 
 type Order struct {
-  ID uint
+  ID string
   transition.Transition
 }
 ```
@@ -37,10 +37,10 @@ OrderStateMachine.State("checkout")
 OrderStateMachine.State("paid").Enter(func(order interface{}, tx *gorm.DB) error {
   // To get order object use 'order.(*Order)'
   // business logic here
-  return
+  return nil
 }).Exit(func(order interface{}, tx *gorm.DB) error {
   // business logic here
-  return
+  return nil
 })
 
 // Define more States

@@ -12,8 +12,9 @@ import (
 type StateChangeLog struct {
 	gorm.Model
 	audited.AuditedModel
+	ID        string `sql:"type:uuid;primary_key" gorm:"default:uuid_generate_v4()"`
 	ReferType string
-	ReferID   uint
+	ReferID   string
 	From      string
 	To        string
 	Note      string `sql:"size:1024"`
